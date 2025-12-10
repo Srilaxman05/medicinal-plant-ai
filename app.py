@@ -1,5 +1,4 @@
 import streamlit as st
-from keras.models import load_model
 from PIL import Image, ImageOps
 import numpy as np
 
@@ -11,42 +10,34 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- 2. DEFINE THE PLANT LIST & MEDICINAL INFO ---
-# The order here MUST match your Teachable Machine Class order (1, 2, 3...)
+# --- 2. HIDE STREAMLIT STYLE (Optional cleanup) ---
+st.markdown("""
+    <style>
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    </style>
+""", unsafe_allow_html=True)
+
+# --- 3. UI HEADER (Render this FIRST so the user sees something) ---
+st.markdown("<h1 style='text-align: center; color: #2E8B57;'>Medicinal Leaf Identification</h1>", unsafe_allow_html=True)
+st.markdown("<p style='text-align: center;'>Upload a clear image of a leaf to identify its species and medicinal uses.</p>", unsafe_allow_html=True)
+st.markdown("---")
+
+# --- 4. DEFINE DATA ---
 LEAF_NAMES = [
-    "Alpinia Galanga (Rasna)",
-    "Amaranthus Viridis (Arive-Dantu)",
-    "Artocarpus Heterophyllus (Jackfruit)",
-    "Azadirachta Indica (Neem)",
-    "Basella Alba (Basale)",
-    "Brassica Juncea (Indian Mustard)",
-    "Carissa Carandas (Karanda)",
-    "Citrus Limon (Lemon)",
-    "Ficus Auriculata (Roxburgh fig)",
-    "Ficus Religiosa (Peepal Tree)",
-    "Hibiscus Rosa-sinensis",
-    "Jasminum (Jasmine)",
-    "Mangifera Indica (Mango)",
-    "Mentha (Mint)",
-    "Moringa Oleifera (Drumstick)",
-    "Muntingia Calabura (Jamaica Cherry-Gasagase)",
-    "Murraya Koenigii (Curry)",
-    "Nerium Oleander (Oleander)",
-    "Nyctanthes Arbor-tristis (Parijata)",
-    "Ocimum Tenuiflorum (Tulsi)",
-    "Piper Betle (Betel)",
-    "Plectranthus Amboinicus (Mexican Mint)",
-    "Pongamia Pinnata (Indian Beech)",
-    "Psidium Guajava (Guava)",
-    "Punica Granatum (Pomegranate)",
-    "Santalum Album (Sandalwood)",
-    "Syzygium Cumini (Jamun)",
-    "Syzygium Jambos (Rose Apple)",
-    "Tabernaemontana Divaricata (Crape Jasmine)",
-    "Trigonella Foenum-graecum (Fenugreek)"
+    "Alpinia Galanga (Rasna)", "Amaranthus Viridis (Arive-Dantu)", "Artocarpus Heterophyllus (Jackfruit)",
+    "Azadirachta Indica (Neem)", "Basella Alba (Basale)", "Brassica Juncea (Indian Mustard)",
+    "Carissa Carandas (Karanda)", "Citrus Limon (Lemon)", "Ficus Auriculata (Roxburgh fig)",
+    "Ficus Religiosa (Peepal Tree)", "Hibiscus Rosa-sinensis", "Jasminum (Jasmine)",
+    "Mangifera Indica (Mango)", "Mentha (Mint)", "Moringa Oleifera (Drumstick)",
+    "Muntingia Calabura (Jamaica Cherry-Gasagase)", "Murraya Koenigii (Curry)",
+    "Nerium Oleander (Oleander)", "Nyctanthes Arbor-tristis (Parijata)", "Ocimum Tenuiflorum (Tulsi)",
+    "Piper Betle (Betel)", "Plectranthus Amboinicus (Mexican Mint)", "Pongamia Pinnata (Indian Beech)",
+    "Psidium Guajava (Guava)", "Punica Granatum (Pomegranate)", "Santalum Album (Sandalwood)",
+    "Syzygium Cumini (Jamun)", "Syzygium Jambos (Rose Apple)",
+    "Tabernaemontana Divaricata (Crape Jasmine)", "Trigonella Foenum-graecum (Fenugreek)"
 ]
 
-# Dictionary to display usage info based on the detected plant
 PLANT_INFO = {
     "Alpinia Galanga (Rasna)": "Used for rheumatism, respiratory ailments, and digestion.",
     "Amaranthus Viridis (Arive-Dantu)": "Rich in vitamins; used for general health and digestion.",
@@ -80,22 +71,38 @@ PLANT_INFO = {
     "Trigonella Foenum-graecum (Fenugreek)": "Controls blood sugar, digestion, and hair health."
 }
 
-# --- 3. LOAD MODEL ---
+# --- 5. SIDEBAR ---
+with st.sidebar:
+    st.title("🌿 AyurVision")
+    st.subheader("Medicinal Plant Identifier")
+    st.write("This AI-powered tool identifies 30 common Indian medicinal plants from leaf images.")
+    with st.expander("See Supported Plants"):
+        st.write("\n".join([f"- {name}" for name in LEAF_NAMES]))
+    st.markdown("---")
+    st.caption("Built with Python & Streamlit")
+
+# --- 6. LOAD MODEL ---
+# We use st.cache_resource to load the model only once.
 @st.cache_resource
 def load_classifier():
     try:
+        # Import TensorFlow only within the function to prevent UI blocking at startup
+        from keras.models import load_model
         model = load_model("keras_model.h5", compile=False)
         return model
     except Exception as e:
+        st.error(f"Error loading model: {e}")
         return None
 
-model = load_classifier()
+# Load model (with a spinner so user knows what's happening)
+with st.spinner("Loading AI Model..."):
+    model = load_classifier()
 
 if model is None:
-    st.error("⚠️ Error: 'keras_model.h5' not found. Please place your model file in the same folder as this script.")
+    st.error("⚠️ Error: 'keras_model.h5' not found or corrupted. Please check your file.")
     st.stop()
 
-# --- 4. PREDICTION ENGINE ---
+# --- 7. PREDICTION ENGINE ---
 def import_and_predict(image_data, model):
     size = (224, 224)
     image = ImageOps.fit(image_data, size, Image.Resampling.LANCZOS)
@@ -105,25 +112,7 @@ def import_and_predict(image_data, model):
     prediction = model.predict(data)
     return prediction
 
-# --- 5. UI LAYOUT ---
-
-# Sidebar
-with st.sidebar:
-    st.title("🌿 AyurVision")
-    st.subheader("Medicinal Plant Identifier")
-    st.write("This AI-powered tool identifies 30 common Indian medicinal plants from leaf images.")
-    
-    with st.expander("See Supported Plants"):
-        st.write("\n".join([f"- {name}" for name in LEAF_NAMES]))
-        
-    st.markdown("---")
-    st.caption("Built with Python & Streamlit")
-
-# Main Interface
-st.markdown("<h1 style='text-align: center; color: #2E8B57;'>Medicinal Leaf Identification</h1>", unsafe_allow_html=True)
-st.markdown("<p style='text-align: center;'>Upload a clear image of a leaf to identify its species and medicinal uses.</p>", unsafe_allow_html=True)
-st.markdown("---")
-
+# --- 8. MAIN INTERFACE ---
 file = st.file_uploader("📂 Upload Leaf Image (JPG/PNG)", type=["jpg", "png", "jpeg"])
 
 if file is None:
@@ -134,7 +123,8 @@ else:
     with col1:
         st.subheader("📸 Uploaded Image")
         image = Image.open(file).convert("RGB")
-        st.image(image, use_container_width=True, style={"border-radius": "10px"})
+        # FIXED: Removed 'style' argument, replaced with use_container_width
+        st.image(image, use_container_width=True)
 
     with col2:
         st.subheader("🧬 Analysis Results")
@@ -144,7 +134,6 @@ else:
             index = np.argmax(prediction)
             confidence_score = prediction[0][index]
             
-            # Logic to handle index errors
             if index < len(LEAF_NAMES):
                 class_name = LEAF_NAMES[index]
                 plant_details = PLANT_INFO.get(class_name, "No specific info available.")
@@ -153,16 +142,11 @@ else:
                 plant_details = "Please check your model classes."
 
         # Display Logic
-        if confidence_score > 0.60:  # Threshold for accuracy
+        if confidence_score > 0.60:
             st.success(f"**Identified:** {class_name}")
-            
-            # Confidence Bar
             st.write(f"Confidence: **{confidence_score * 100:.2f}%**")
             st.progress(int(confidence_score * 100))
-            
-            # Medicinal Info Card
             st.info(f"💊 **Medicinal Uses:**\n\n{plant_details}")
-            
         else:
             st.warning(f"**Identified:** {class_name} (Low Confidence)")
             st.write(f"Confidence: {confidence_score * 100:.2f}%")
