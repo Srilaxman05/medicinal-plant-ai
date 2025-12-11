@@ -1,4 +1,4 @@
-name: Convert Model
+name: Convert Model Fixed
 on: [push]
 jobs:
   convert-model:
@@ -15,9 +15,42 @@ jobs:
       - name: Install TensorFlow
         run: pip install tensorflow-cpu
         
-      - name: Convert h5 to tflite
+      - name: Convert h5 to tflite (With Fix)
+        shell: python
         run: |
-          python -c "import tensorflow as tf; model = tf.keras.models.load_model('keras_model.h5', compile=False); converter = tf.lite.TFLiteConverter.from_keras_model(model); tflite_model = converter.convert(); open('model.tflite', 'wb').write(tflite_model)"
+          import tensorflow as tf
+          import os
+
+          print("Defining Patch for DepthwiseConv2D...")
+          # --- THE FIX ---
+          class FixedDepthwiseConv2D(tf.keras.layers.DepthwiseConv2D):
+              def __init__(self, **kwargs):
+                  kwargs.pop('groups', None) # Remove the specific error cause
+                  super().__init__(**kwargs)
+          # ----------------
+
+          try:
+              print("Loading Keras Model...")
+              # Load with the custom object fix
+              model = tf.keras.models.load_model(
+                  'keras_model.h5', 
+                  compile=False,
+                  custom_objects={'DepthwiseConv2D': FixedDepthwiseConv2D}
+              )
+
+              print("Converting to TFLite...")
+              converter = tf.lite.TFLiteConverter.from_keras_model(model)
+              tflite_model = converter.convert()
+
+              print("Saving model.tflite...")
+              with open('model.tflite', 'wb') as f:
+                  f.write(tflite_model)
+              
+              print("Conversion Successful!")
+              
+          except Exception as e:
+              print(f"Error occurred: {e}")
+              exit(1)
           
       - name: Upload TFLite File
         uses: actions/upload-artifact@v4
