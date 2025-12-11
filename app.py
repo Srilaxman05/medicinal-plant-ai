@@ -2,6 +2,7 @@ import streamlit as st
 import numpy as np
 from PIL import Image, ImageOps
 import os
+import tensorflow as tf  # Using TensorFlow directly
 
 # --- 1. CONFIGURATION ---
 st.set_page_config(
@@ -64,25 +65,20 @@ PLANT_INFO = {
     "Trigonella Foenum-graecum (Fenugreek)": "Controls blood sugar, digestion, and hair health."
 }
 
-# --- 4. MODEL ENGINE (TFLite Runtime) ---
+# --- 4. MODEL ENGINE (TensorFlow) ---
 @st.cache_resource
 def load_model():
-    """Load the TFLite model using the lightweight runtime."""
+    """Load the TFLite model using TensorFlow."""
     try:
-        # Import tflite_runtime
-        from tflite_runtime.interpreter import Interpreter
-        
         model_path = "model.tflite"
         if not os.path.exists(model_path):
             st.error(f"❌ File not found: {model_path}. Please upload it to your repo.")
             return None
-            
-        interpreter = Interpreter(model_path=model_path)
+        
+        # Load using TensorFlow
+        interpreter = tf.lite.Interpreter(model_path=model_path)
         interpreter.allocate_tensors()
         return interpreter
-    except ImportError:
-        st.error("❌ tflite_runtime not installed. Check requirements.txt")
-        return None
     except Exception as e:
         st.error(f"Error loading AI Engine: {e}")
         return None
