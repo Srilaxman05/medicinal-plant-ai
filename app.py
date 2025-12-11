@@ -1,146 +1,44 @@
 import streamlit as st
-from PIL import Image, ImageOps
-import numpy as np
+import tensorflow as tf
+import os
 
-# --- 1. SET PAGE CONFIGURATION ---
-st.set_page_config(
-    page_title="AyurVision: Medicinal Plant Scanner",
-    page_icon="🌿",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
+st.set_page_config(page_title="H5 to TFLite Converter")
 
-# --- 2. UI HEADER (Render this FIRST so user sees app instantly) ---
-st.markdown("<h1 style='text-align: center; color: #2E8B57;'>Medicinal Leaf Identification</h1>", unsafe_allow_html=True)
-st.markdown("<p style='text-align: center;'>Upload a clear image of a leaf to identify its species and medicinal uses.</p>", unsafe_allow_html=True)
-st.markdown("---")
+st.title("🛠️ H5 to TFLite Converter")
+st.write("Since you can't use Colab/Local, use this tool to convert your model.")
 
-# --- 3. DEFINE DATA (Lightweight text data loads fast) ---
-LEAF_NAMES = [
-    "Alpinia Galanga (Rasna)", "Amaranthus Viridis (Arive-Dantu)", "Artocarpus Heterophyllus (Jackfruit)",
-    "Azadirachta Indica (Neem)", "Basella Alba (Basale)", "Brassica Juncea (Indian Mustard)",
-    "Carissa Carandas (Karanda)", "Citrus Limon (Lemon)", "Ficus Auriculata (Roxburgh fig)",
-    "Ficus Religiosa (Peepal Tree)", "Hibiscus Rosa-sinensis", "Jasminum (Jasmine)",
-    "Mangifera Indica (Mango)", "Mentha (Mint)", "Moringa Oleifera (Drumstick)",
-    "Muntingia Calabura (Jamaica Cherry-Gasagase)", "Murraya Koenigii (Curry)",
-    "Nerium Oleander (Oleander)", "Nyctanthes Arbor-tristis (Parijata)", "Ocimum Tenuiflorum (Tulsi)",
-    "Piper Betle (Betel)", "Plectranthus Amboinicus (Mexican Mint)", "Pongamia Pinnata (Indian Beech)",
-    "Psidium Guajava (Guava)", "Punica Granatum (Pomegranate)", "Santalum Album (Sandalwood)",
-    "Syzygium Cumini (Jamun)", "Syzygium Jambos (Rose Apple)",
-    "Tabernaemontana Divaricata (Crape Jasmine)", "Trigonella Foenum-graecum (Fenugreek)"
-]
+uploaded_file = st.file_uploader("Upload your keras_model.h5 file", type=["h5"])
 
-PLANT_INFO = {
-    "Alpinia Galanga (Rasna)": "Used for rheumatism, respiratory ailments, and digestion.",
-    "Amaranthus Viridis (Arive-Dantu)": "Rich in vitamins; used for general health and digestion.",
-    "Artocarpus Heterophyllus (Jackfruit)": "Roots used for asthma; leaves for skin diseases.",
-    "Azadirachta Indica (Neem)": "Powerful antiseptic, antifungal, and blood purifier.",
-    "Basella Alba (Basale)": "Cooling effect, good for mouth ulcers and digestion.",
-    "Brassica Juncea (Indian Mustard)": "Oil used for joint pain; seeds for digestion.",
-    "Carissa Carandas (Karanda)": "Rich in Iron/Vitamin C; treats anemia and digestion.",
-    "Citrus Limon (Lemon)": "Immunity booster, digestive aid, rich in Vitamin C.",
-    "Ficus Auriculata (Roxburgh fig)": "Used for wounds, cuts, and digestive issues.",
-    "Ficus Religiosa (Peepal Tree)": "Treats asthma, skin disorders, and kidney issues.",
-    "Hibiscus Rosa-sinensis": "Good for hair growth, blood pressure, and heart health.",
-    "Jasminum (Jasmine)": "Stress relief, skin health, and wound healing.",
-    "Mangifera Indica (Mango)": "Leaves help regulate insulin levels and treat burns.",
-    "Mentha (Mint)": "Relieves indigestion, nausea, and headache.",
-    "Moringa Oleifera (Drumstick)": "Superfood; treats joint pain, anemia, and diabetes.",
-    "Muntingia Calabura (Jamaica Cherry-Gasagase)": "Pain relief, antibacterial properties.",
-    "Murraya Koenigii (Curry)": "Good for hair, digestion, and controlling blood sugar.",
-    "Nerium Oleander (Oleander)": "⚠️ CAUTION: Toxic if ingested. Used externally for skin conditions.",
-    "Nyctanthes Arbor-tristis (Parijata)": "Treats sciatica, arthritis, and fever.",
-    "Ocimum Tenuiflorum (Tulsi)": "Holy Basil. Treats colds, coughs, and boosts immunity.",
-    "Piper Betle (Betel)": "Digestion, oral health, and wound healing.",
-    "Plectranthus Amboinicus (Mexican Mint)": "Treats cough, cold, and asthma (Karpooravalli).",
-    "Pongamia Pinnata (Indian Beech)": "Oil used for skin diseases and rheumatism.",
-    "Psidium Guajava (Guava)": "Treats diarrhea, toothache, and gum infections.",
-    "Punica Granatum (Pomegranate)": "Digestion, heart health, and anemia.",
-    "Santalum Album (Sandalwood)": "Skin care, cooling, and mental clarity.",
-    "Syzygium Cumini (Jamun)": "Excellent for diabetes management and digestion.",
-    "Syzygium Jambos (Rose Apple)": "Treats smallpox, joints, and eye inflammation.",
-    "Tabernaemontana Divaricata (Crape Jasmine)": "Used for wounds, eye diseases, and toothache.",
-    "Trigonella Foenum-graecum (Fenugreek)": "Controls blood sugar, digestion, and hair health."
-}
-
-# --- 4. SIDEBAR ---
-with st.sidebar:
-    st.title("🌿 AyurVision")
-    st.subheader("Medicinal Plant Identifier")
-    st.write("This AI-powered tool identifies 30 common Indian medicinal plants from leaf images.")
-    with st.expander("See Supported Plants"):
-        st.write("\n".join([f"- {name}" for name in LEAF_NAMES]))
-    st.caption("Built with Python & Streamlit")
-
-# --- 5. OPTIMIZED MODEL LOADING ---
-@st.cache_resource
-def get_model():
-    """
-    Loads the model only when needed. 
-    Imports are inside the function to prevent UI blocking at startup.
-    """
+if uploaded_file is not None:
+    st.write("Processing...")
+    
+    # 1. Save the uploaded h5 file temporarily
+    with open("temp_model.h5", "wb") as f:
+        f.write(uploaded_file.getbuffer())
+    
     try:
-        # Import inside function so app starts fast
-        from keras.models import load_model 
-        model = load_model("keras_model.h5", compile=False)
-        return model
-    except Exception as e:
-        return None
-
-def predict_image(image_data, model):
-    """
-    Helper function to process image and predict
-    """
-    size = (224, 224)
-    image = ImageOps.fit(image_data, size, Image.Resampling.LANCZOS)
-    img = np.asarray(image)
-    img_reshape = img[np.newaxis, ...]
-    data = (img_reshape.astype(np.float32) / 127.5) - 1
-    prediction = model.predict(data)
-    return prediction
-
-# --- 6. MAIN INTERFACE LOGIC ---
-file = st.file_uploader("📂 Upload Leaf Image (JPG/PNG)", type=["jpg", "png", "jpeg"])
-
-if file is None:
-    st.info("Please upload an image to begin analysis.")
-else:
-    col1, col2 = st.columns([1, 1], gap="medium")
-
-    with col1:
-        st.subheader("📸 Uploaded Image")
-        image = Image.open(file).convert("RGB")
-        st.image(image, use_container_width=True)
-
-    with col2:
-        st.subheader("🧬 Analysis Results")
+        # 2. Load the Keras model
+        st.info("Loading Keras model... (This might take a minute)")
+        model = tf.keras.models.load_model("temp_model.h5", compile=False)
         
-        # Load model ONLY after upload logic triggers
-        with st.spinner("Initializing AI engine & Scanning..."):
-            model = get_model()
-            
-            if model is None:
-                st.error("⚠️ Error: 'keras_model.h5' not found. Please check your file.")
-                st.stop()
+        # 3. Convert to TFLite
+        st.info("Converting to TFLite...")
+        converter = tf.lite.TFLiteConverter.from_keras_model(model)
+        tflite_model = converter.convert()
+        
+        # 4. Create the download button
+        st.success("Conversion Successful! Download your file below:")
+        
+        st.download_button(
+            label="⬇️ Download model.tflite",
+            data=tflite_model,
+            file_name="model.tflite",
+            mime="application/octet-stream"
+        )
+        
+    except Exception as e:
+        st.error(f"Error during conversion: {e}")
 
-            prediction = predict_image(image, model)
-            index = np.argmax(prediction)
-            confidence_score = prediction[0][index]
-            
-            if index < len(LEAF_NAMES):
-                class_name = LEAF_NAMES[index]
-                plant_details = PLANT_INFO.get(class_name, "No specific info available.")
-            else:
-                class_name = "Unknown Species"
-                plant_details = "Please check your model classes."
-
-        # Display Logic
-        if confidence_score > 0.60:
-            st.success(f"**Identified:** {class_name}")
-            st.write(f"Confidence: **{confidence_score * 100:.2f}%**")
-            st.progress(int(confidence_score * 100))
-            st.info(f"💊 **Medicinal Uses:**\n\n{plant_details}")
-        else:
-            st.warning(f"**Identified:** {class_name} (Low Confidence)")
-            st.write(f"Confidence: {confidence_score * 100:.2f}%")
-            st.error("⚠️ The image is unclear or the leaf is not in our database. Please try again.")
+    # Cleanup temp file
+    if os.path.exists("temp_model.h5"):
+        os.remove("temp_model.h5")
