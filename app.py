@@ -10,20 +10,12 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- 2. HIDE STREAMLIT STYLE (Optional cleanup) ---
-st.markdown("""
-    <style>
-    #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
-    </style>
-""", unsafe_allow_html=True)
-
-# --- 3. UI HEADER (Render this FIRST so the user sees something) ---
+# --- 2. UI HEADER (Render this FIRST so user sees app instantly) ---
 st.markdown("<h1 style='text-align: center; color: #2E8B57;'>Medicinal Leaf Identification</h1>", unsafe_allow_html=True)
 st.markdown("<p style='text-align: center;'>Upload a clear image of a leaf to identify its species and medicinal uses.</p>", unsafe_allow_html=True)
 st.markdown("---")
 
-# --- 4. DEFINE DATA ---
+# --- 3. DEFINE DATA (Lightweight text data loads fast) ---
 LEAF_NAMES = [
     "Alpinia Galanga (Rasna)", "Amaranthus Viridis (Arive-Dantu)", "Artocarpus Heterophyllus (Jackfruit)",
     "Azadirachta Indica (Neem)", "Basella Alba (Basale)", "Brassica Juncea (Indian Mustard)",
@@ -71,39 +63,34 @@ PLANT_INFO = {
     "Trigonella Foenum-graecum (Fenugreek)": "Controls blood sugar, digestion, and hair health."
 }
 
-# --- 5. SIDEBAR ---
+# --- 4. SIDEBAR ---
 with st.sidebar:
     st.title("🌿 AyurVision")
     st.subheader("Medicinal Plant Identifier")
     st.write("This AI-powered tool identifies 30 common Indian medicinal plants from leaf images.")
     with st.expander("See Supported Plants"):
         st.write("\n".join([f"- {name}" for name in LEAF_NAMES]))
-    st.markdown("---")
     st.caption("Built with Python & Streamlit")
 
-# --- 6. LOAD MODEL ---
-# We use st.cache_resource to load the model only once.
+# --- 5. OPTIMIZED MODEL LOADING ---
 @st.cache_resource
-def load_classifier():
+def get_model():
+    """
+    Loads the model only when needed. 
+    Imports are inside the function to prevent UI blocking at startup.
+    """
     try:
-        # Import TensorFlow only within the function to prevent UI blocking at startup
-        from keras.models import load_model
+        # Import inside function so app starts fast
+        from keras.models import load_model 
         model = load_model("keras_model.h5", compile=False)
         return model
     except Exception as e:
-        st.error(f"Error loading model: {e}")
         return None
 
-# Load model (with a spinner so user knows what's happening)
-with st.spinner("Loading AI Model..."):
-    model = load_classifier()
-
-if model is None:
-    st.error("⚠️ Error: 'keras_model.h5' not found or corrupted. Please check your file.")
-    st.stop()
-
-# --- 7. PREDICTION ENGINE ---
-def import_and_predict(image_data, model):
+def predict_image(image_data, model):
+    """
+    Helper function to process image and predict
+    """
     size = (224, 224)
     image = ImageOps.fit(image_data, size, Image.Resampling.LANCZOS)
     img = np.asarray(image)
@@ -112,7 +99,7 @@ def import_and_predict(image_data, model):
     prediction = model.predict(data)
     return prediction
 
-# --- 8. MAIN INTERFACE ---
+# --- 6. MAIN INTERFACE LOGIC ---
 file = st.file_uploader("📂 Upload Leaf Image (JPG/PNG)", type=["jpg", "png", "jpeg"])
 
 if file is None:
@@ -123,14 +110,20 @@ else:
     with col1:
         st.subheader("📸 Uploaded Image")
         image = Image.open(file).convert("RGB")
-        # FIXED: Removed 'style' argument, replaced with use_container_width
         st.image(image, use_container_width=True)
 
     with col2:
         st.subheader("🧬 Analysis Results")
         
-        with st.spinner('Scanning leaf patterns...'):
-            prediction = import_and_predict(image, model)
+        # Load model ONLY after upload logic triggers
+        with st.spinner("Initializing AI engine & Scanning..."):
+            model = get_model()
+            
+            if model is None:
+                st.error("⚠️ Error: 'keras_model.h5' not found. Please check your file.")
+                st.stop()
+
+            prediction = predict_image(image, model)
             index = np.argmax(prediction)
             confidence_score = prediction[0][index]
             
