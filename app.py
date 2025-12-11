@@ -2,9 +2,8 @@ import streamlit as st
 import numpy as np
 from PIL import Image, ImageOps
 import os
-import tensorflow as tf  # Changed from tflite_runtime to tensorflow
 
-# --- 1. CONFIGURATION (Must be the first line) ---
+# --- 1. CONFIGURATION ---
 st.set_page_config(
     page_title="AyurVision: Medicinal Plant Scanner",
     page_icon="🌿",
@@ -17,7 +16,7 @@ st.markdown("<h1 style='text-align: center; color: #2E8B57;'>Medicinal Leaf Iden
 st.caption("Upload a clear leaf image to identify its species and medicinal uses.")
 st.markdown("---")
 
-# --- 3. DATA: PLANT NAMES & INFO ---
+# --- 3. DATA ---
 LEAF_NAMES = [
     "Alpinia Galanga (Rasna)", "Amaranthus Viridis (Arive-Dantu)", "Artocarpus Heterophyllus (Jackfruit)",
     "Azadirachta Indica (Neem)", "Basella Alba (Basale)", "Brassica Juncea (Indian Mustard)",
@@ -65,21 +64,25 @@ PLANT_INFO = {
     "Trigonella Foenum-graecum (Fenugreek)": "Controls blood sugar, digestion, and hair health."
 }
 
-# --- 4. MODEL ENGINE (Using standard TensorFlow) ---
+# --- 4. MODEL ENGINE (TFLite Runtime) ---
 @st.cache_resource
 def load_model():
-    """Load the TFLite model using TensorFlow."""
+    """Load the TFLite model using the lightweight runtime."""
     try:
-        model_path = "model.tflite"
+        # Import tflite_runtime
+        from tflite_runtime.interpreter import Interpreter
         
+        model_path = "model.tflite"
         if not os.path.exists(model_path):
             st.error(f"❌ File not found: {model_path}. Please upload it to your repo.")
             return None
             
-        # Initialize the TFLite interpreter using TensorFlow
-        interpreter = tf.lite.Interpreter(model_path=model_path)
+        interpreter = Interpreter(model_path=model_path)
         interpreter.allocate_tensors()
         return interpreter
+    except ImportError:
+        st.error("❌ tflite_runtime not installed. Check requirements.txt")
+        return None
     except Exception as e:
         st.error(f"Error loading AI Engine: {e}")
         return None
@@ -89,18 +92,18 @@ def predict_image(interpreter, image):
     input_details = interpreter.get_input_details()
     output_details = interpreter.get_output_details()
 
-    # 1. Resize to 224x224 (Standard for Teachable Machine)
+    # 1. Resize
     size = (224, 224)
     image = ImageOps.fit(image, size, Image.Resampling.LANCZOS)
     
-    # 2. Convert to Array & Normalize
+    # 2. Convert & Normalize
     img_array = np.asarray(image)
     normalized_image_array = (img_array.astype(np.float32) / 127.5) - 1
     
-    # 3. Reshape for Model (1, 224, 224, 3)
+    # 3. Reshape
     data = normalized_image_array[np.newaxis, ...]
 
-    # 4. Run Inference
+    # 4. Inference
     interpreter.set_tensor(input_details[0]['index'], data)
     interpreter.invoke()
     prediction = interpreter.get_tensor(output_details[0]['index'])
@@ -112,7 +115,6 @@ file = st.file_uploader("📂 Upload Image", type=["jpg", "png", "jpeg"])
 
 if file:
     col1, col2 = st.columns([1, 1], gap="medium")
-    
     with col1:
         st.subheader("📸 Uploaded Leaf")
         image = Image.open(file).convert("RGB")
@@ -120,44 +122,26 @@ if file:
 
     with col2:
         st.subheader("🧬 Identification")
-        
-        # Use st.status to show progress without blocking
-        with st.status("Initializing AI Brain...", expanded=True) as status:
+        with st.status("Analyzing...", expanded=True) as status:
             interpreter = load_model()
-            
             if interpreter:
-                status.write("Scanning leaf patterns...")
                 predictions = predict_image(interpreter, image)
-                
-                # Get Result
                 index = np.argmax(predictions)
                 confidence = predictions[0][index]
-                
-                status.update(label="Analysis Complete", state="complete", expanded=False)
+                status.update(label="Complete", state="complete", expanded=False)
 
-                # Display Logic
                 if index < len(LEAF_NAMES):
                     name = LEAF_NAMES[index]
-                    details = PLANT_INFO.get(name, "No specific info available.")
-                    
+                    details = PLANT_INFO.get(name, "No info available.")
                     if confidence > 0.65:
                         st.success(f"**Identified:** {name}")
                         st.progress(int(confidence * 100))
                         st.caption(f"Confidence: **{confidence*100:.2f}%**")
-                        st.info(f"**💊 Medicinal Uses:**\n\n{details}")
+                        st.info(f"**Medicinal Uses:**\n{details}")
                     else:
                         st.warning(f"**Possible Match:** {name}")
-                        st.write(f"Confidence: {confidence*100:.2f}%")
-                        st.error("⚠️ Low confidence. Please upload a clearer image.")
+                        st.caption(f"Confidence: {confidence*100:.2f}% (Low)")
                 else:
-                    st.error("❌ Unknown Plant Species")
+                    st.error("Unknown Plant")
             else:
                 status.update(label="Error", state="error")
-
-# --- 6. SIDEBAR INFO ---
-with st.sidebar:
-    st.title("🌿 AyurVision")
-    st.info("This app uses a TFLite model to identify 30 different medicinal plants common in India.")
-    st.write("---")
-    st.write("**Supported Plants:**")
-    st.caption(", ".join(LEAF_NAMES[:5]) + " and more...")
