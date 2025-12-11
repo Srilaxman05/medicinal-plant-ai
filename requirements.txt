@@ -1,4 +1,5 @@
 streamlit
 numpy
 Pillow
-tensorflow-cpu
+--extra-index-url https://google-coral.github.io/py-repo/
+tflite_runtime
