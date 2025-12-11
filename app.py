@@ -2,6 +2,7 @@ import streamlit as st
 import numpy as np
 from PIL import Image, ImageOps
 import os
+import tensorflow as tf  # Changed from tflite_runtime to tensorflow
 
 # --- 1. CONFIGURATION (Must be the first line) ---
 st.set_page_config(
@@ -64,19 +65,19 @@ PLANT_INFO = {
     "Trigonella Foenum-graecum (Fenugreek)": "Controls blood sugar, digestion, and hair health."
 }
 
-# --- 4. MODEL ENGINE (TFLITE) ---
+# --- 4. MODEL ENGINE (Using standard TensorFlow) ---
 @st.cache_resource
 def load_model():
-    """Load the TFLite model using the lightweight runtime."""
+    """Load the TFLite model using TensorFlow."""
     try:
-        from tflite_runtime.interpreter import Interpreter
         model_path = "model.tflite"
         
         if not os.path.exists(model_path):
             st.error(f"❌ File not found: {model_path}. Please upload it to your repo.")
             return None
             
-        interpreter = Interpreter(model_path=model_path)
+        # Initialize the TFLite interpreter using TensorFlow
+        interpreter = tf.lite.Interpreter(model_path=model_path)
         interpreter.allocate_tensors()
         return interpreter
     except Exception as e:
@@ -156,7 +157,7 @@ if file:
 # --- 6. SIDEBAR INFO ---
 with st.sidebar:
     st.title("🌿 AyurVision")
-    st.info("This app uses a lightweight TFLite model to identify 30 different medicinal plants common in India.")
+    st.info("This app uses a TFLite model to identify 30 different medicinal plants common in India.")
     st.write("---")
     st.write("**Supported Plants:**")
     st.caption(", ".join(LEAF_NAMES[:5]) + " and more...")
