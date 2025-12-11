@@ -1,5 +1,6 @@
 streamlit
-numpy
 Pillow
---extra-index-url https://google-coral.github.io/py-repo/
-tflite_runtime
+# We must pin numpy to less than 2.0 to prevent installation errors
+numpy<2.0.0
+# We use tensorflow-cpu because it is more stable on Cloud than tflite-runtime
+tensorflow-cpu
