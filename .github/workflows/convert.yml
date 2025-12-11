@@ -1,0 +1,26 @@
+name: Convert Model
+on: [push]
+jobs:
+  convert-model:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+          
+      - name: Install TensorFlow
+        run: pip install tensorflow-cpu
+        
+      - name: Convert h5 to tflite
+        run: |
+          python -c "import tensorflow as tf; model = tf.keras.models.load_model('keras_model.h5', compile=False); converter = tf.lite.TFLiteConverter.from_keras_model(model); tflite_model = converter.convert(); open('model.tflite', 'wb').write(tflite_model)"
+          
+      - name: Upload TFLite File
+        uses: actions/upload-artifact@v4
+        with:
+          name: converted-model
+          path: model.tflite
