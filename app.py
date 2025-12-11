@@ -1,44 +1,64 @@
 import streamlit as st
-import tensorflow as tf
 import os
 
+# --- 1. SETUP PAGE ---
 st.set_page_config(page_title="H5 to TFLite Converter")
-
 st.title("🛠️ H5 to TFLite Converter")
-st.write("Since you can't use Colab/Local, use this tool to convert your model.")
+st.caption("A tool to convert Keras models to TFLite for faster loading.")
 
-uploaded_file = st.file_uploader("Upload your keras_model.h5 file", type=["h5"])
+# --- 2. UPLOAD FILE ---
+uploaded_file = st.file_uploader("Upload your keras_model.h5", type=["h5"])
 
+# --- 3. CONVERSION LOGIC ---
 if uploaded_file is not None:
-    st.write("Processing...")
-    
-    # 1. Save the uploaded h5 file temporarily
-    with open("temp_model.h5", "wb") as f:
-        f.write(uploaded_file.getbuffer())
-    
-    try:
-        # 2. Load the Keras model
-        st.info("Loading Keras model... (This might take a minute)")
-        model = tf.keras.models.load_model("temp_model.h5", compile=False)
+    if st.button("Start Conversion"):
         
-        # 3. Convert to TFLite
-        st.info("Converting to TFLite...")
-        converter = tf.lite.TFLiteConverter.from_keras_model(model)
-        tflite_model = converter.convert()
+        # A. Save uploaded file
+        with open("temp_model.h5", "wb") as f:
+            f.write(uploaded_file.getbuffer())
         
-        # 4. Create the download button
-        st.success("Conversion Successful! Download your file below:")
+        status = st.status("Initializing conversion...", expanded=True)
         
-        st.download_button(
-            label="⬇️ Download model.tflite",
-            data=tflite_model,
-            file_name="model.tflite",
-            mime="application/octet-stream"
-        )
+        try:
+            # B. Lazy Import TensorFlow (Only happens when button is clicked)
+            status.write("Loading TensorFlow Library (This takes 10-20 seconds)...")
+            import tensorflow as tf
+            
+            # C. Load Model
+            status.write("Reading Keras Model...")
+            model = tf.keras.models.load_model("temp_model.h5", compile=False)
+            
+            # D. Convert
+            status.write("Converting to TFLite...")
+            converter = tf.lite.TFLiteConverter.from_keras_model(model)
+            tflite_model = converter.convert()
+            
+            status.update(label="Conversion Complete!", state="complete", expanded=False)
+            
+            # E. Download Button
+            st.success("Success! Download your file below:")
+            st.download_button(
+                label="⬇️ Download model.tflite",
+                data=tflite_model,
+                file_name="model.tflite",
+                mime="application/octet-stream"
+            )
+            
+        except Exception as e:
+            st.error(f"Error: {e}")
+            status.update(label="Failed", state="error")
         
-    except Exception as e:
-        st.error(f"Error during conversion: {e}")
+        # Cleanup
+        if os.path.exists("temp_model.h5"):
+            os.remove("temp_model.h5")
 
-    # Cleanup temp file
-    if os.path.exists("temp_model.h5"):
-        os.remove("temp_model.h5")
+# --- 4. INSTRUCTIONS ---
+st.markdown("---")
+st.info("""
+**Instructions:**
+1. Upload your `.h5` file.
+2. Click **Start Conversion**.
+3. Wait for the 'Loading TensorFlow' step (it happens only once).
+4. Download the `.tflite` file.
+5. Afterwards, replace this code with your Leaf Scanner code!
+""")
