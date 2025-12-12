@@ -2,7 +2,17 @@ import streamlit as st
 import numpy as np
 from PIL import Image, ImageOps
 import os
-import tensorflow as tf  # Using TensorFlow directly
+
+# --- CHANGE: Import tflite_runtime instead of tensorflow ---
+# This is much smaller and prevents deployment crashes
+try:
+    import tflite_runtime.interpreter as tflite
+except ImportError:
+    # Fallback for local testing if user has full tensorflow installed
+    try:
+        import tensorflow.lite as tflite
+    except ImportError:
+        st.error("❌ tflite-runtime not installed. Please add 'tflite-runtime' to requirements.txt")
 
 # --- 1. CONFIGURATION ---
 st.set_page_config(
@@ -65,18 +75,18 @@ PLANT_INFO = {
     "Trigonella Foenum-graecum (Fenugreek)": "Controls blood sugar, digestion, and hair health."
 }
 
-# --- 4. MODEL ENGINE (TensorFlow) ---
+# --- 4. MODEL ENGINE ---
 @st.cache_resource
 def load_model():
-    """Load the TFLite model using TensorFlow."""
+    """Load the TFLite model using tflite-runtime."""
     try:
         model_path = "model.tflite"
         if not os.path.exists(model_path):
-            st.error(f"❌ File not found: {model_path}. Please upload it to your repo.")
+            st.error(f"❌ File not found: {model_path}. Please upload 'model.tflite' to your GitHub repo.")
             return None
         
-        # Load using TensorFlow
-        interpreter = tf.lite.Interpreter(model_path=model_path)
+        # Load using tflite_runtime
+        interpreter = tflite.Interpreter(model_path=model_path)
         interpreter.allocate_tensors()
         return interpreter
     except Exception as e:
@@ -89,14 +99,17 @@ def predict_image(interpreter, image):
     output_details = interpreter.get_output_details()
 
     # 1. Resize
-    size = (224, 224)
+    # Ensure the size matches your model training (common is 224x224)
+    size = (224, 224) 
     image = ImageOps.fit(image, size, Image.Resampling.LANCZOS)
     
     # 2. Convert & Normalize
     img_array = np.asarray(image)
+    # Normalize to [-1, 1] usually. Check if your model expects [0, 1] or [-1, 1]
     normalized_image_array = (img_array.astype(np.float32) / 127.5) - 1
     
     # 3. Reshape
+    # Add batch dimension: (1, 224, 224, 3)
     data = normalized_image_array[np.newaxis, ...]
 
     # 4. Inference
@@ -123,12 +136,18 @@ if file:
             if interpreter:
                 predictions = predict_image(interpreter, image)
                 index = np.argmax(predictions)
-                confidence = predictions[0][index]
+                
+                # Handle confidence score extraction safely
+                # Predictions might be shape (1, 30) or just (30,)
+                confidence = predictions[0][index] if predictions.ndim > 1 else predictions[index]
+                
                 status.update(label="Complete", state="complete", expanded=False)
 
                 if index < len(LEAF_NAMES):
                     name = LEAF_NAMES[index]
                     details = PLANT_INFO.get(name, "No info available.")
+                    
+                    # Threshold for confidence
                     if confidence > 0.65:
                         st.success(f"**Identified:** {name}")
                         st.progress(int(confidence * 100))
@@ -136,7 +155,7 @@ if file:
                         st.info(f"**Medicinal Uses:**\n{details}")
                     else:
                         st.warning(f"**Possible Match:** {name}")
-                        st.caption(f"Confidence: {confidence*100:.2f}% (Low)")
+                        st.caption(f"Confidence: {confidence*100:.2f}% (Low) - Try a clearer image")
                 else:
                     st.error("Unknown Plant")
             else:
